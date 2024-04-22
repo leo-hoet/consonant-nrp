@@ -1,6 +1,5 @@
 # Import
 import pyomo.environ as pyo
-#import pyomo as pyo
 
 model = pyo.AbstractModel()
 
