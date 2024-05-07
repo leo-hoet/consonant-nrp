@@ -1,5 +1,3 @@
-from typing import Tuple, List
-
 from pymoo.algorithms.soo.nonconvex import ga
 from pymoo.core.problem import ElementwiseProblem
 import numpy as np
@@ -22,8 +20,14 @@ class ConsonantFuzzyNRP(ElementwiseProblem):
         return self._p.len_customers * self._p.len_ac
 
     def get_ys(self, x):
-        y_pos = x[:, 0:((self.len_y * self._p.len_ac) - 1)]
-        y_nec = x[:, ((self.len_y * self._p.len_ac) - 1):]
+        offset = 2 * self.len_x  # 2 times x, one for nec and one for pos
+        y_pos = x[offset: (offset + self.len_y)]
+
+        offset += self.len_y
+        y_nec = x[offset: (offset + self.len_y)]
+
+        offset += self.len_y
+        assert offset == len(x), "Ofsset is not equal to len(x)"
         return y_pos, y_nec
 
     def _y_val(self, y, c_name, alpha):
@@ -44,11 +48,11 @@ class ConsonantFuzzyNRP(ElementwiseProblem):
     def __init__(self, params: ConsonantNRPParameters):
         self._p = params
 
-        x_pos = np.zeros(self.len_x * len(params.AC))
-        x_nec = np.zeros(self.len_x * len(params.AC))
+        x_pos = np.zeros(self.len_x)
+        x_nec = np.zeros(self.len_x)
 
-        y_pos = np.zeros(self.len_y * len(params.AC))
-        y_nec = np.zeros(self.len_y * len(params.AC))
+        y_pos = np.zeros(self.len_y)
+        y_nec = np.zeros(self.len_y)
 
         all_vars = np.concatenate([x_nec, x_pos, y_nec, y_pos])
         super().__init__(
