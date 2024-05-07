@@ -1,9 +1,10 @@
-from typing import List, Tuple, Dict, Union
+from typing import List, Tuple, Dict, Union, OrderedDict
 
 from pydantic import BaseModel
 
 index = int
-CustomerName = Union[str, int]
+CustomerName = Union[int, str]
+CustomerUtility = float
 ReqName = Union[str, int]
 TrapezoidalFuzzyNumber = Tuple[float, float, float, float]
 
@@ -12,7 +13,7 @@ class ConsonantNRPParameters(BaseModel):
     # alpha levels
     AC: List[float]
     # Customers names. Generally the names are just numbers
-    customers: List[CustomerName]
+    customers: OrderedDict[CustomerName, CustomerUtility]
     # Int     interest relation, customer has interest over req
     interests: List[Tuple[CustomerName, ReqName]]
     # Max effort allowed

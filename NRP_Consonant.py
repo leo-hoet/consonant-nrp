@@ -68,7 +68,8 @@ def get_a_and_p(model):
                 max(extended_alpha[i:-1]) -
                 max(extended_alpha[i + 1:])
         )
-        for i in range(1, len(extended_alpha) - 1)]
+        for i in range(1, len(extended_alpha) - 1)
+    ]
     a = (
             [sum(model.u[i] * model.y_Nec[i, alpha] for i in model.C) for j, alpha in enumerate(alphas)] +
             [sum(model.u[i] * model.y_Pos[i, alpha] for i in model.C) for j, alpha in enumerate(alphas[-1::-1])]
