@@ -77,13 +77,18 @@ class ConsonantFuzzyNRP(ElementwiseProblem):
         constraints_interest_pos = self._p.len_ac * len(self._p.interests)
         constraints_interest_nec = self._p.len_ac * len(self._p.interests)
 
+        constraints_nested_plan_pos = self._p.len_ac * len(self._p.effort_req)
+        constraints_nested_plan_rec = self._p.len_ac * len(self._p.effort_req)
+
         total = (
                 constraints_for_disponibility_pos +
                 constraints_for_disponibility_nec +
                 constraints_for_precedence_rule_nec +
                 constraints_for_precedence_rule_pos +
                 constraints_interest_pos +
-                constraints_interest_nec
+                constraints_interest_nec +
+                constraints_nested_plan_pos +
+                constraints_nested_plan_rec
         )
         return total
 
@@ -233,6 +238,37 @@ class ConsonantFuzzyNRP(ElementwiseProblem):
         assert (self._p.len_ac * len(self._p.interests)) == len(constraint_values)
         return np.array(constraint_values)
 
+    def nested_plans_pos_rule(self, x):
+        constraint_values = []
+        for req in self._p.effort_req.keys():
+            for alpha1 in self._p.AC:
+                greater_alphas = [alpha for alpha in self._p.AC if alpha > alpha1]
+                if not greater_alphas:
+                    constraint_values.append(0)
+                else:
+                    alpha2 = min(greater_alphas)
+                    left_side = self.x_val_pos(x, req, alpha2)
+                    right_side = self.x_val_pos(x, req, alpha1)
+                    constraint_values.append(left_side - right_side)
+        assert len(constraint_values) == (self._p.len_ac * len(self._p.effort_req))
+        return np.array(constraint_values)
+
+    def nested_plans_nec_rule(self, x):
+        constraint_values = []
+        for req in self._p.effort_req.keys():
+            for alpha1 in self._p.AC:
+                greater_alphas = [alpha for alpha in self._p.AC if alpha > alpha1]
+                if not greater_alphas:
+                    constraint_values.append(0)
+                else:
+                    alpha2 = min(greater_alphas)
+                    left_side = self.x_val_nec(x, req, alpha1)
+                    right_side = self.x_val_nec(x, req, alpha2)
+                    constraint_values.append(left_side - right_side)
+        assert len(constraint_values) == (self._p.len_ac * len(self._p.effort_req))
+        return np.array(constraint_values)
+
+
     # x: 1 x NVar
     def _evaluate(self, x, out, *args, **kwargs):
         x = x.astype(int)
@@ -245,8 +281,11 @@ class ConsonantFuzzyNRP(ElementwiseProblem):
         p_nec = self.precedence_rule_nec(x)
         i_pos = self.interest_rule_pos(x)
         i_nec = self.interest_rule_nec(x)
+        n_pos = self.nested_plans_pos_rule(x)
+        n_rec = self.nested_plans_nec_rule(x)
+
         stacked_constraints = np.concatenate([
-            d_pos, d_nec, p_pos, p_nec, i_pos, i_nec
+            d_pos, d_nec, p_pos, p_nec, i_pos, i_nec, n_pos, n_rec
         ])
         out["G"] = stacked_constraints
 
