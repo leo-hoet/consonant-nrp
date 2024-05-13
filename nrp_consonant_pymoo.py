@@ -40,8 +40,6 @@ class ConsonantFuzzyNRP(ElementwiseProblem):
 
         return x_nec, x_pos
 
-
-
     def _y_val(self, y, c_name, alpha):
         customers = self._p.customers
         keys = list(customers.keys())
@@ -58,7 +56,7 @@ class ConsonantFuzzyNRP(ElementwiseProblem):
         return self._y_val(y_nec, customer_name, alpha)
 
     def _x_val(self, xs, req_name, alpha):
-        req_index = list(self._p.effort_req.keys()).index(req_name)
+        req_index = list(self._p.effort_req.keys()).index(str(req_name))
         alpha_index = self._p.AC.index(alpha)
         return xs[req_index + (self._p.len_ac * alpha_index)]
 
@@ -143,7 +141,7 @@ class ConsonantFuzzyNRP(ElementwiseProblem):
             a.append(pos_sum)
         return a
 
-    def disponibility_rule_pos(self, x) -> NDArray[Shape["self._p.len_ac"], float]:
+    def disponibility_rule_pos(self, x):
         p1, p2, p3, p4 = self._p.p
         constraint_values = []
 
@@ -164,7 +162,7 @@ class ConsonantFuzzyNRP(ElementwiseProblem):
         assert self._p.len_ac == len(constraint_values), f"expected {self._p.len_ac} got {len(constraint_values)=} "
         return np.array(constraint_values)
 
-    def disponibility_rule_nec(self, x) -> NDArray[Shape["self._p.len_ac"], float]:
+    def disponibility_rule_nec(self, x):
         p1, p2, p3, p4 = self._p.p
         constraint_values = []
 
@@ -190,7 +188,7 @@ class ConsonantFuzzyNRP(ElementwiseProblem):
         fitness_to_minimize = (-1) * fitness
         return fitness_to_minimize
 
-    def precedence_rule_pos(self, x) -> NDArray[Shape["AC * len(prereq)"], float]:
+    def precedence_rule_pos(self, x):
         constraint_values = []
 
         for alpha in self._p.AC:
@@ -201,7 +199,7 @@ class ConsonantFuzzyNRP(ElementwiseProblem):
         assert (self._p.len_ac * len(self._p.prereq)) == len(constraint_values)
         return np.array(constraint_values)
 
-    def precedence_rule_nec(self, x) -> NDArray[Shape["AC * len(prereq)"], float]:
+    def precedence_rule_nec(self, x):
         constraint_values = []
 
         for alpha in self._p.AC:
@@ -214,12 +212,18 @@ class ConsonantFuzzyNRP(ElementwiseProblem):
 
 
 
-
     # x: 1 x NVar
     def _evaluate(self, x, out, *args, **kwargs):
+        x = x.astype(int)
         res = self._calculate_obj_function(x)
         out["F"] = res
-        out["G"] = 0.1 - out["F"]
+
+        d_pos = self.disponibility_rule_pos(x)
+        d_nec = self.disponibility_rule_nec(x)
+        p_pos = self.precedence_rule_pos(x)
+        p_nec = self.precedence_rule_nec(x)
+        stacked_constraints = np.concatenate([d_pos, d_nec, p_pos, p_nec])
+        out["G"] = stacked_constraints
 
 
 def main():
