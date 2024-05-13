@@ -270,7 +270,7 @@ def pyomo_postprocess(options=None, instance=None, results=None):
 
 
 if __name__ == '__main__':
-    instance = model.create_instance("nrp_100c_140r_consonant.dat")
+    instance = model.create_instance("nrp_example_consonant.dat")
 
     opt = SolverFactory('cbc')
     opt.options["threads"] = 16
@@ -281,4 +281,4 @@ if __name__ == '__main__':
     elapsed_time = t1 - t0
     print('Execution time:', elapsed_time, 'seconds')
     print(str(results))
-    pyomo_postprocess(instance=instance)
+    # pyomo_postprocess(instance=instance)

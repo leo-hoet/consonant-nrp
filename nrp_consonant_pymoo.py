@@ -1,7 +1,10 @@
+from pymoo.algorithms.moo.nsga2 import NSGA2
 from pymoo.algorithms.soo.nonconvex import ga
+from pymoo.constraints.as_obj import ConstraintsAsObjective
 from pymoo.core.callback import Callback
 from pymoo.core.problem import ElementwiseProblem
 import numpy as np
+from pymoo.operators.crossover.pntx import TwoPointCrossover
 from pymoo.operators.crossover.sbx import SBX
 from pymoo.operators.mutation.bitflip import BitflipMutation
 from pymoo.operators.sampling.rnd import BinaryRandomSampling
@@ -326,34 +329,36 @@ class ConsonantFuzzyNRP(ElementwiseProblem):
 def main():
     params = nrp_example_data()
     problem = ConsonantFuzzyNRP(params)
-    algol = ga.GA(
+    algol = NSGA2(
+        pop_size=100,
+        n_offsprings=10,
         sampling=BinaryRandomSampling(),
+        crossover=TwoPointCrossover(),
         mutation=BitflipMutation(),
         eliminate_duplicates=True,
-        pop_size=100
+        seed=1
     )
-
-    selection = RandomSelection()
-    crossover = SBX()
 
     res = minimize(
-        problem=problem,
+        problem=ConstraintsAsObjective(problem),
         algorithm=algol,
         termination=('n_gen', 100),
-        selection=selection,
-        crossover=crossover,
-        callback=BestCandidateCallback(),
-        verbose=False
-
+        # callback=BestCandidateCallback(),
+        verbose=True,
+        save_history=True,
     )
 
-    X = res.X
-    F = res.F
-    print(f"{X=}")
-    print(f"{F=}")
+    from pymoo.core.evaluator import Evaluator
+    from pymoo.core.individual import Individual
 
-    val = res.algorithm.callback.data["best"]
+    cv = res.F[:, 0]
+    least_infeas = cv.argmin()
+    x = res.X[least_infeas]
 
+    sol = Individual(X=x)
+    Evaluator().eval(problem, sol)
+    print("Optimum is: -396.3")
+    print("Best solution found: \nX = %s\nF = %s\nCV = %s" % (sol.X, sol.F, sol.CV))
 
 if __name__ == '__main__':
     main()
