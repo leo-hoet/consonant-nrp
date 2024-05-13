@@ -1,3 +1,4 @@
+from nptyping import Shape, NDArray, Float
 from pymoo.algorithms.soo.nonconvex import ga
 from pymoo.core.problem import ElementwiseProblem
 import numpy as np
@@ -30,6 +31,17 @@ class ConsonantFuzzyNRP(ElementwiseProblem):
         assert offset == len(x), "Ofsset is not equal to len(x)"
         return y_pos, y_nec
 
+    def get_xs(self, x):
+        offset = 0
+        x_nec = x[offset:(offset + self.len_x)]
+
+        offset += self.len_x
+        x_pos = x[offset:(offset + self.len_x)]
+
+        return x_nec, x_pos
+
+
+
     def _y_val(self, y, c_name, alpha):
         customers = self._p.customers
         keys = list(customers.keys())
@@ -44,6 +56,19 @@ class ConsonantFuzzyNRP(ElementwiseProblem):
     def y_val_nec(self, x, customer_name: str, alpha: float):
         _, y_nec = self.get_ys(x)
         return self._y_val(y_nec, customer_name, alpha)
+
+    def _x_val(self, xs, req_name, alpha):
+        req_index = list(self._p.effort_req.keys()).index(req_name)
+        alpha_index = self._p.AC.index(alpha)
+        return xs[req_index + (self._p.len_ac * alpha_index)]
+
+    def x_nec_pos(self, x, req_name: str, alpha: float):
+        x_nec, _ = self.get_xs(x)
+        return self._x_val(x_nec, req_name, alpha)
+
+    def x_val_pos(self, x, req_name: str, alpha: float):
+        _, x_pos = self.get_xs(x)
+        return self._x_val(x_pos, req_name, alpha)
 
     def __init__(self, params: ConsonantNRPParameters):
         self._p = params
@@ -102,16 +127,52 @@ class ConsonantFuzzyNRP(ElementwiseProblem):
             a.append(pos_sum)
         return a
 
-    def get_xs(self, x):
-        x_pos = x[:, 0:((self.len_x * self._p.len_ac) - 1)]
-        x_nec = x[:, ((self.len_x * self._p.len_ac) - 1):]
-        return x_pos, x_nec
+    def disponibility_rule_pos(self, x) -> NDArray[Shape["self._p.len_ac"], float]:
+        p1, p2, p3, p4 = self._p.p
+        constraint_values = []
+
+        for alpha in self._p.AC:
+            sum1 = 0
+            sum2 = 0
+            for req, effort in self._p.effort_req.items():
+                e1, e2, e3, e4 = effort
+                x_pos = self.x_val_pos(x, req, alpha)
+                sum1 += e2 * x_pos
+                sum2 += (e2 - e1) * x_pos
+            left_side = p3 - sum1
+            right_side = (alpha - 1) * (p4 - p3 + sum2)
+            # This is done bc pymoo wants constraint in the form of <= 0
+            # check  https://pymoo.org/getting_started/part_2.html
+            constraint_val = right_side - left_side
+            constraint_values.append(constraint_val)
+        assert self._p.len_ac == len(constraint_values), f"expected {self._p.len_ac} got {len(constraint_values)=} "
+        return np.array(constraint_values)
+
+    def disponibility_rule_nec(self, x) -> NDArray[Shape["self._p.len_ac"], float]:
+        p1, p2, p3, p4 = self._p.p
+        constraint_values = []
+
+        for alpha in self._p.AC:
+            sum1 = 0
+            sum2 = 0
+            for req, effort in self._p.effort_req.items():
+                e1, e2, e3, e4 = effort
+                sum1 += e3 * self.x_nec_pos(x, req, alpha)
+                sum2 += (e4 - e3) * self.x_nec_pos(x, req, alpha)
+            left_side = p2 - sum1
+            right_side = (1 - alpha) * (p2 - p1 + sum2)
+            constraint_val = right_side - left_side
+            constraint_values.append(constraint_val)
+        assert self._p.len_ac == len(constraint_values), f"expected {self._p.len_ac} got {len(constraint_values)=} "
+        return np.array(constraint_values)
 
     def _calculate_obj_function(self, x):
         p = self.p
         a = self.a(x)
         assert len(p) == len(a), "p and a does not have the same length"
-        return sum(map(lambda z, y: z * y, p, a))
+        fitness = sum(map(lambda z, y: z * y, p, a))
+        fitness_to_minimize = (-1) * fitness
+        return fitness_to_minimize
 
     # x: 1 x NVar
     def _evaluate(self, x, out, *args, **kwargs):

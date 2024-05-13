@@ -19,7 +19,7 @@ class ConsonantNRPParameters(BaseModel):
     # Max effort allowed
     p: TrapezoidalFuzzyNumber
     # Associate each req with its effort
-    effort_req: Dict[ReqName, TrapezoidalFuzzyNumber]
+    effort_req: OrderedDict[ReqName, TrapezoidalFuzzyNumber]
     # technical precedence relation (i, j) <-> r_i precedes r_j
     prereq: List[Tuple[ReqName, ReqName]]
 
