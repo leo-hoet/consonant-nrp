@@ -1,14 +1,12 @@
+import matplotlib.pyplot as plt
 from pymoo.algorithms.moo.nsga2 import NSGA2
-from pymoo.algorithms.soo.nonconvex import ga
 from pymoo.constraints.as_obj import ConstraintsAsObjective
 from pymoo.core.callback import Callback
 from pymoo.core.problem import ElementwiseProblem
 import numpy as np
 from pymoo.operators.crossover.pntx import TwoPointCrossover
-from pymoo.operators.crossover.sbx import SBX
 from pymoo.operators.mutation.bitflip import BitflipMutation
 from pymoo.operators.sampling.rnd import BinaryRandomSampling
-from pymoo.operators.selection.rnd import RandomSelection
 from pymoo.optimize import minimize
 
 from nrp_consonant_helpers import nrp_example_data, ConsonantNRPParameters
@@ -326,6 +324,14 @@ class ConsonantFuzzyNRP(ElementwiseProblem):
         out["G"] = stacked_constraints
 
 
+def display_pareto_matrix(problem, F):
+    xl, xu = problem.bounds()
+    plt.figure(figsize=(7, 5))
+    plt.scatter(F[:, 0], F[:, 1], s=30, facecolors='none', edgecolors='blue')
+    plt.title("Objective Space")
+    plt.show()
+    pass
+
 def main():
     params = nrp_example_data()
     problem = ConsonantFuzzyNRP(params)
@@ -338,9 +344,9 @@ def main():
         eliminate_duplicates=True,
         seed=1
     )
-
+    problem = ConstraintsAsObjective(problem)
     res = minimize(
-        problem=ConstraintsAsObjective(problem),
+        problem=problem,
         algorithm=algol,
         termination=('n_gen', 100),
         # callback=BestCandidateCallback(),
@@ -359,6 +365,8 @@ def main():
     Evaluator().eval(problem, sol)
     print("Optimum is: -396.3")
     print("Best solution found: \nX = %s\nF = %s\nCV = %s" % (sol.X, sol.F, sol.CV))
+
+    display_pareto_matrix(problem, res.F)
 
 if __name__ == '__main__':
     main()
