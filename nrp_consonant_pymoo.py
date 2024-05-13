@@ -1,4 +1,3 @@
-from nptyping import Shape, NDArray, Float
 from pymoo.algorithms.soo.nonconvex import ga
 from pymoo.core.problem import ElementwiseProblem
 import numpy as np
@@ -43,7 +42,7 @@ class ConsonantFuzzyNRP(ElementwiseProblem):
     def _y_val(self, y, c_name, alpha):
         customers = self._p.customers
         keys = list(customers.keys())
-        customer_index = keys.index(c_name)  # 0 index
+        customer_index = keys.index(str(c_name))  # 0 index
         alpha_index = self._p.AC.index(alpha)
         return y[customer_index + alpha_index * self._p.len_ac]
 
@@ -75,11 +74,16 @@ class ConsonantFuzzyNRP(ElementwiseProblem):
         constraints_for_precedence_rule_nec = self._p.len_ac * len(self._p.prereq)
         constraints_for_precedence_rule_pos = self._p.len_ac * len(self._p.prereq)
 
+        constraints_interest_pos = self._p.len_ac * len(self._p.interests)
+        constraints_interest_nec = self._p.len_ac * len(self._p.interests)
+
         total = (
                 constraints_for_disponibility_pos +
                 constraints_for_disponibility_nec +
                 constraints_for_precedence_rule_nec +
-                constraints_for_precedence_rule_pos
+                constraints_for_precedence_rule_pos +
+                constraints_interest_pos +
+                constraints_interest_nec
         )
         return total
 
@@ -201,7 +205,6 @@ class ConsonantFuzzyNRP(ElementwiseProblem):
 
     def precedence_rule_nec(self, x):
         constraint_values = []
-
         for alpha in self._p.AC:
             for i, j in self._p.prereq:
                 left_side = self.x_val_nec(x, j, alpha)
@@ -210,7 +213,25 @@ class ConsonantFuzzyNRP(ElementwiseProblem):
         assert (self._p.len_ac * len(self._p.prereq)) == len(constraint_values)
         return np.array(constraint_values)
 
+    def interest_rule_pos(self, x):
+        constraint_values = []
+        for alpha in self._p.AC:
+            for customer_i, req_j in self._p.interests:
+                left_side = self.y_val_pos(x, customer_i, alpha)
+                right_side = self.x_val_pos(x, req_j, alpha)
+                constraint_values.append(left_side - right_side)
+        assert (self._p.len_ac * len(self._p.interests)) == len(constraint_values)
+        return np.array(constraint_values)
 
+    def interest_rule_nec(self, x):
+        constraint_values = []
+        for alpha in self._p.AC:
+            for customer_i, req_j in self._p.interests:
+                left_side = self.y_val_nec(x, customer_i, alpha)
+                right_side = self.x_val_nec(x, req_j, alpha)
+                constraint_values.append(left_side - right_side)
+        assert (self._p.len_ac * len(self._p.interests)) == len(constraint_values)
+        return np.array(constraint_values)
 
     # x: 1 x NVar
     def _evaluate(self, x, out, *args, **kwargs):
@@ -222,7 +243,11 @@ class ConsonantFuzzyNRP(ElementwiseProblem):
         d_nec = self.disponibility_rule_nec(x)
         p_pos = self.precedence_rule_pos(x)
         p_nec = self.precedence_rule_nec(x)
-        stacked_constraints = np.concatenate([d_pos, d_nec, p_pos, p_nec])
+        i_pos = self.interest_rule_pos(x)
+        i_nec = self.interest_rule_nec(x)
+        stacked_constraints = np.concatenate([
+            d_pos, d_nec, p_pos, p_nec, i_pos, i_nec
+        ])
         out["G"] = stacked_constraints
 
 
@@ -243,10 +268,16 @@ def main():
         problem=problem,
         algorithm=algol,
         termination=('n_gen', 100),
-        verbose=False,
         selection=selection,
-        crossover=crossover
+        crossover=crossover,
+        save_history=True,
+        verbose=True
     )
+
+    X = res.X
+    F = res.F
+    print(f"{X=}")
+    print(f"{F=}")
 
 
 if __name__ == '__main__':
