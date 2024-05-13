@@ -62,7 +62,7 @@ class ConsonantFuzzyNRP(ElementwiseProblem):
         alpha_index = self._p.AC.index(alpha)
         return xs[req_index + (self._p.len_ac * alpha_index)]
 
-    def x_nec_pos(self, x, req_name: str, alpha: float):
+    def x_val_nec(self, x, req_name: str, alpha: float):
         x_nec, _ = self.get_xs(x)
         return self._x_val(x_nec, req_name, alpha)
 
@@ -74,7 +74,15 @@ class ConsonantFuzzyNRP(ElementwiseProblem):
         constraints_for_disponibility_pos = self._p.len_ac
         constraints_for_disponibility_nec = self._p.len_ac
 
-        total = constraints_for_disponibility_pos + constraints_for_disponibility_nec
+        constraints_for_precedence_rule_nec = self._p.len_ac * len(self._p.prereq)
+        constraints_for_precedence_rule_pos = self._p.len_ac * len(self._p.prereq)
+
+        total = (
+                constraints_for_disponibility_pos +
+                constraints_for_disponibility_nec +
+                constraints_for_precedence_rule_nec +
+                constraints_for_precedence_rule_pos
+        )
         return total
 
     def __init__(self, params: ConsonantNRPParameters):
@@ -165,8 +173,8 @@ class ConsonantFuzzyNRP(ElementwiseProblem):
             sum2 = 0
             for req, effort in self._p.effort_req.items():
                 e1, e2, e3, e4 = effort
-                sum1 += e3 * self.x_nec_pos(x, req, alpha)
-                sum2 += (e4 - e3) * self.x_nec_pos(x, req, alpha)
+                sum1 += e3 * self.x_val_nec(x, req, alpha)
+                sum2 += (e4 - e3) * self.x_val_nec(x, req, alpha)
             left_side = p2 - sum1
             right_side = (1 - alpha) * (p2 - p1 + sum2)
             constraint_val = right_side - left_side
@@ -181,6 +189,31 @@ class ConsonantFuzzyNRP(ElementwiseProblem):
         fitness = sum(map(lambda z, y: z * y, p, a))
         fitness_to_minimize = (-1) * fitness
         return fitness_to_minimize
+
+    def precedence_rule_pos(self, x) -> NDArray[Shape["AC * len(prereq)"], float]:
+        constraint_values = []
+
+        for alpha in self._p.AC:
+            for i, j in self._p.prereq:
+                left_side = self.x_val_pos(x, j, alpha)
+                right_side = self.x_val_pos(x, i, alpha)
+                constraint_values.append(left_side - right_side)
+        assert (self._p.len_ac * len(self._p.prereq)) == len(constraint_values)
+        return np.array(constraint_values)
+
+    def precedence_rule_nec(self, x) -> NDArray[Shape["AC * len(prereq)"], float]:
+        constraint_values = []
+
+        for alpha in self._p.AC:
+            for i, j in self._p.prereq:
+                left_side = self.x_val_nec(x, j, alpha)
+                right_side = self.x_val_nec(x, i, alpha)
+                constraint_values.append(left_side - right_side)
+        assert (self._p.len_ac * len(self._p.prereq)) == len(constraint_values)
+        return np.array(constraint_values)
+
+
+
 
     # x: 1 x NVar
     def _evaluate(self, x, out, *args, **kwargs):
