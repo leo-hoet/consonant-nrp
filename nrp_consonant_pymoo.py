@@ -1,4 +1,5 @@
 from pymoo.algorithms.soo.nonconvex import ga
+from pymoo.core.callback import Callback
 from pymoo.core.problem import ElementwiseProblem
 import numpy as np
 from pymoo.operators.crossover.sbx import SBX
@@ -8,6 +9,24 @@ from pymoo.operators.selection.rnd import RandomSelection
 from pymoo.optimize import minimize
 
 from nrp_consonant_helpers import nrp_example_data, ConsonantNRPParameters
+
+
+class BestCandidateCallback(Callback):
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.data["best"] = []
+        self.data["constraints"] = []
+        self.data["feasible"] = []
+
+    def notify(self, algorithm):
+        algol = algorithm
+        pop = algol.pop
+        best_individual = min(pop, key=lambda p: p.F)
+        self.data["best"].append(best_individual.F)
+        self.data["constraints"].append(best_individual.G)
+        self.data["feasible"].append(best_individual.feasible)
+        print(f"Best individual fitness: {best_individual.F} feasible={best_individual.feasible}")
 
 
 class ConsonantFuzzyNRP(ElementwiseProblem):
@@ -323,14 +342,17 @@ def main():
         termination=('n_gen', 100),
         selection=selection,
         crossover=crossover,
-        save_history=True,
-        verbose=True
+        callback=BestCandidateCallback(),
+        verbose=False
+
     )
 
     X = res.X
     F = res.F
     print(f"{X=}")
     print(f"{F=}")
+
+    val = res.algorithm.callback.data["best"]
 
 
 if __name__ == '__main__':
