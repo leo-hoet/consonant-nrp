@@ -80,6 +80,8 @@ class ConsonantFuzzyNRP(ElementwiseProblem):
         constraints_nested_plan_pos = self._p.len_ac * len(self._p.effort_req)
         constraints_nested_plan_rec = self._p.len_ac * len(self._p.effort_req)
 
+        constraints_nec_to_pos = len(self._p.effort_req)
+
         total = (
                 constraints_for_disponibility_pos +
                 constraints_for_disponibility_nec +
@@ -88,7 +90,8 @@ class ConsonantFuzzyNRP(ElementwiseProblem):
                 constraints_interest_pos +
                 constraints_interest_nec +
                 constraints_nested_plan_pos +
-                constraints_nested_plan_rec
+                constraints_nested_plan_rec +
+                constraints_nec_to_pos
         )
         return total
 
@@ -268,6 +271,16 @@ class ConsonantFuzzyNRP(ElementwiseProblem):
         assert len(constraint_values) == (self._p.len_ac * len(self._p.effort_req))
         return np.array(constraint_values)
 
+    def nested_plans_nec_to_pos_rule(self, x):
+        max_ac = max(self._p.AC)
+        constraint_values = []
+        for req in self._p.effort_req.keys():
+            left_side = self.x_val_nec(x, req, max_ac)
+            right_side = self.x_val_nec(x, req, max_ac)
+            constraint_values.append(left_side - right_side)
+        assert len(constraint_values) == len(self._p.effort_req)
+        return np.array(constraint_values)
+
 
     # x: 1 x NVar
     def _evaluate(self, x, out, *args, **kwargs):
@@ -283,9 +296,10 @@ class ConsonantFuzzyNRP(ElementwiseProblem):
         i_nec = self.interest_rule_nec(x)
         n_pos = self.nested_plans_pos_rule(x)
         n_rec = self.nested_plans_nec_rule(x)
+        n_nec_to_pos = self.nested_plans_nec_to_pos_rule(x)
 
         stacked_constraints = np.concatenate([
-            d_pos, d_nec, p_pos, p_nec, i_pos, i_nec, n_pos, n_rec
+            d_pos, d_nec, p_pos, p_nec, i_pos, i_nec, n_pos, n_rec, n_nec_to_pos
         ])
         out["G"] = stacked_constraints
 
