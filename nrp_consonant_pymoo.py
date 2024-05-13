@@ -70,6 +70,13 @@ class ConsonantFuzzyNRP(ElementwiseProblem):
         _, x_pos = self.get_xs(x)
         return self._x_val(x_pos, req_name, alpha)
 
+    def number_of_constraints(self) -> int:
+        constraints_for_disponibility_pos = self._p.len_ac
+        constraints_for_disponibility_nec = self._p.len_ac
+
+        total = constraints_for_disponibility_pos + constraints_for_disponibility_nec
+        return total
+
     def __init__(self, params: ConsonantNRPParameters):
         self._p = params
 
@@ -80,10 +87,11 @@ class ConsonantFuzzyNRP(ElementwiseProblem):
         y_nec = np.zeros(self.len_y)
 
         all_vars = np.concatenate([x_nec, x_pos, y_nec, y_pos])
+        n = self.number_of_constraints()
         super().__init__(
             n_var=all_vars.size,
             n_obj=1,
-            n_ieq_constr=1,  # TODO: this
+            n_ieq_constr=n,
             xl=np.zeros(all_vars.size),
             xu=np.ones(all_vars.size)
         )
