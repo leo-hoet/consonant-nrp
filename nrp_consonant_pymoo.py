@@ -1,5 +1,6 @@
 import matplotlib.pyplot as plt
 from pymoo.algorithms.moo.nsga2 import NSGA2
+from pymoo.algorithms.soo.nonconvex.ga import GA
 from pymoo.constraints.as_obj import ConstraintsAsObjective
 from pymoo.core.callback import Callback
 from pymoo.core.problem import ElementwiseProblem
@@ -8,8 +9,16 @@ from pymoo.operators.crossover.pntx import TwoPointCrossover
 from pymoo.operators.mutation.bitflip import BitflipMutation
 from pymoo.operators.sampling.rnd import BinaryRandomSampling
 from pymoo.optimize import minimize
+from pymoo.operators.selection.rnd import Selection
+from pymoo.operators.selection.tournament import TournamentSelection
+from typing import Literal
 
+from graphics import ga_progression, display_pareto_matrix
 from nrp_consonant_helpers import nrp_example_data, ConsonantNRPParameters
+
+
+class Config:
+    RUN_TYPE: Literal['default', 'piecewise', 'constraints_as_of'] = 'constraints_as_of'
 
 
 class BestCandidateCallback(Callback):
@@ -21,10 +30,13 @@ class BestCandidateCallback(Callback):
         self.data["feasible"] = []
 
     def notify(self, algorithm):
+        if Config.RUN_TYPE == 'constraints_as_of':
+            return
+
         algol = algorithm
         pop = algol.pop
         best_individual = min(pop, key=lambda p: p.F)
-        self.data["best"].append(best_individual.F)
+        self.data["best"].append(best_individual.F[0])
         self.data["constraints"].append(best_individual.G)
         self.data["feasible"].append(best_individual.feasible)
         print(f"Best individual fitness: {best_individual.F} feasible={best_individual.feasible}")
@@ -126,10 +138,15 @@ class ConsonantFuzzyNRP(ElementwiseProblem):
 
         all_vars = np.concatenate([x_nec, x_pos, y_nec, y_pos])
         n = self.number_of_constraints()
+
+        if Config.RUN_TYPE == 'constraints_as_of':
+            n_ieq_constr = n
+        else:
+            n_ieq_constr = 0 if Config.RUN_TYPE == 'piecewise' else n
         super().__init__(
             n_var=all_vars.size,
             n_obj=1,
-            n_ieq_constr=n,
+            n_ieq_constr=n_ieq_constr,
             xl=np.zeros(all_vars.size),
             xu=np.ones(all_vars.size)
         )
@@ -305,8 +322,6 @@ class ConsonantFuzzyNRP(ElementwiseProblem):
     # x: 1 x NVar
     def _evaluate(self, x, out, *args, **kwargs):
         x = x.astype(int)
-        res = self._calculate_obj_function(x)
-        out["F"] = res
 
         d_pos = self.disponibility_rule_pos(x)
         d_nec = self.disponibility_rule_nec(x)
@@ -321,21 +336,30 @@ class ConsonantFuzzyNRP(ElementwiseProblem):
         stacked_constraints = np.concatenate([
             d_pos, d_nec, p_pos, p_nec, i_pos, i_nec, n_pos, n_rec, n_nec_to_pos
         ])
-        out["G"] = stacked_constraints
 
+        if Config.RUN_TYPE == 'piecewise':
+            sum = stacked_constraints[stacked_constraints > 0].sum()
+            if sum > 0:
+                out["F"] = sum
+            else:
+                res = self._calculate_obj_function(x)
+                out["F"] = res
+        else:
+            res = self._calculate_obj_function(x)
+            out["F"] = res
+            out["G"] = stacked_constraints
 
-def display_pareto_matrix(problem, F):
-    xl, xu = problem.bounds()
-    plt.figure(figsize=(7, 5))
-    plt.scatter(F[:, 0], F[:, 1], s=30, facecolors='none', edgecolors='blue')
-    plt.title("Objective Space")
-    plt.show()
-    pass
 
 def main():
     params = nrp_example_data()
     problem = ConsonantFuzzyNRP(params)
-    algol = NSGA2(
+    if Config.RUN_TYPE == 'constraints_as_of':
+        algorithm = NSGA2
+        problem = ConstraintsAsObjective(problem)
+    else:
+        algorithm = GA
+
+    algol = algorithm(
         pop_size=100,
         n_offsprings=10,
         sampling=BinaryRandomSampling(),
@@ -344,29 +368,42 @@ def main():
         eliminate_duplicates=True,
         seed=1
     )
-    problem = ConstraintsAsObjective(problem)
     res = minimize(
         problem=problem,
         algorithm=algol,
         termination=('n_gen', 100),
-        # callback=BestCandidateCallback(),
+        callback=BestCandidateCallback(),
         verbose=True,
         save_history=True,
     )
 
-    from pymoo.core.evaluator import Evaluator
-    from pymoo.core.individual import Individual
+    if Config.RUN_TYPE in ['piecewise', 'default']:
+        scores = res.algorithm.callback.data['best']
+        ga_progression(scores)
+        return
+    elif Config.RUN_TYPE == 'constraints_as_of':
+        from pymoo.core.evaluator import Evaluator
+        from pymoo.core.individual import Individual
+        cv = res.F[:, 0]
+        least_infeas = cv.argmin()
+        x = res.X[least_infeas]
 
-    cv = res.F[:, 0]
-    least_infeas = cv.argmin()
-    x = res.X[least_infeas]
+        sol = Individual(X=x)
+        Evaluator().eval(problem, sol)
+        print("Optimum is: -396.3")
+        print("Best solution found: \nX = %s\nF = %s\nCV = %s" % (sol.X, sol.F, sol.CV))
 
-    sol = Individual(X=x)
-    Evaluator().eval(problem, sol)
-    print("Optimum is: -396.3")
-    print("Best solution found: \nX = %s\nF = %s\nCV = %s" % (sol.X, sol.F, sol.CV))
+        display_pareto_matrix(problem, res.F)
 
-    display_pareto_matrix(problem, res.F)
 
 if __name__ == '__main__':
     main()
+
+# TODO:
+# El and y or en las operaciones de crossover en NRP original no danian la solucion. Analizar e implementar esto para ver si funciona
+# Ver si se puede definir el operador de selection para implementar una fucion de comparacion custom.
+#   Seria algo asi como primero definir el ganador por la nec y si hay empate hacerlo por pos
+# Ver como inicializar la poblacion con una poblacion factible
+
+# DONE
+# - Otra opcion es hacer una sola func piecewise donde G(x) si no es factible y -F(X) si es factible
