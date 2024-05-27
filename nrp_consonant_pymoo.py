@@ -15,10 +15,12 @@ from typing import Literal
 
 from graphics import ga_progression, display_pareto_matrix
 from nrp_consonant_helpers import nrp_example_data, ConsonantNRPParameters
+from nrpaccessors import NrpAccessors
+from nrpmutation import NrpMutation
 
 
 class Config:
-    RUN_TYPE: Literal['default', 'piecewise', 'constraints_as_of'] = 'constraints_as_of'
+    RUN_TYPE: Literal['default', 'piecewise', 'constraints_as_of'] = 'piecewise'
 
 
 class BestCandidateCallback(Callback):
@@ -43,62 +45,6 @@ class BestCandidateCallback(Callback):
 
 
 class ConsonantFuzzyNRP(ElementwiseProblem):
-    @property
-    def len_x(self):
-        return self._p.len_req * self._p.len_ac
-
-    @property
-    def len_y(self):
-        return self._p.len_customers * self._p.len_ac
-
-    def get_ys(self, x):
-        offset = 2 * self.len_x  # 2 times x, one for nec and one for pos
-        y_pos = x[offset: (offset + self.len_y)]
-
-        offset += self.len_y
-        y_nec = x[offset: (offset + self.len_y)]
-
-        offset += self.len_y
-        assert offset == len(x), "Ofsset is not equal to len(x)"
-        return y_pos, y_nec
-
-    def get_xs(self, x):
-        offset = 0
-        x_nec = x[offset:(offset + self.len_x)]
-
-        offset += self.len_x
-        x_pos = x[offset:(offset + self.len_x)]
-
-        return x_nec, x_pos
-
-    def _y_val(self, y, c_name, alpha):
-        customers = self._p.customers
-        keys = list(customers.keys())
-        customer_index = keys.index(str(c_name))  # 0 index
-        alpha_index = self._p.AC.index(alpha)
-        return y[customer_index + alpha_index * self._p.len_ac]
-
-    def y_val_pos(self, x, customer_name: str, alpha: float):
-        y_pos, _ = self.get_ys(x)
-        return self._y_val(y_pos, customer_name, alpha)
-
-    def y_val_nec(self, x, customer_name: str, alpha: float):
-        _, y_nec = self.get_ys(x)
-        return self._y_val(y_nec, customer_name, alpha)
-
-    def _x_val(self, xs, req_name, alpha):
-        req_index = list(self._p.effort_req.keys()).index(str(req_name))
-        alpha_index = self._p.AC.index(alpha)
-        return xs[req_index + (self._p.len_ac * alpha_index)]
-
-    def x_val_nec(self, x, req_name: str, alpha: float):
-        x_nec, _ = self.get_xs(x)
-        return self._x_val(x_nec, req_name, alpha)
-
-    def x_val_pos(self, x, req_name: str, alpha: float):
-        _, x_pos = self.get_xs(x)
-        return self._x_val(x_pos, req_name, alpha)
-
     def number_of_constraints(self) -> int:
         constraints_for_disponibility_pos = self._p.len_ac
         constraints_for_disponibility_nec = self._p.len_ac
@@ -127,17 +73,22 @@ class ConsonantFuzzyNRP(ElementwiseProblem):
         )
         return total
 
-    def __init__(self, params: ConsonantNRPParameters):
-        self._p = params
+    def get_all_vars(self):
+        x_pos = np.zeros(self.accesors.len_x)
 
-        x_pos = np.zeros(self.len_x)
-        x_nec = np.zeros(self.len_x)
-
-        y_pos = np.zeros(self.len_y)
-        y_nec = np.zeros(self.len_y)
+        x_nec = np.zeros(self.accesors.len_x)
+        y_pos = np.zeros(self.accesors.len_y)
+        y_nec = np.zeros(self.accesors.len_y)
 
         all_vars = np.concatenate([x_nec, x_pos, y_nec, y_pos])
+        return all_vars
+
+    def __init__(self, params: ConsonantNRPParameters):
+        self._p = params
+        self.accesors = NrpAccessors(params)
         n = self.number_of_constraints()
+        all_vars = self.get_all_vars()
+
 
         if Config.RUN_TYPE == 'constraints_as_of':
             n_ieq_constr = n
@@ -177,14 +128,14 @@ class ConsonantFuzzyNRP(ElementwiseProblem):
         a = []
         for j, alpha in enumerate(alphas):
             nec_sum = sum(
-                self._p.customers[customer] * self.y_val_nec(x, customer, alpha) for customer in
+                self._p.customers[customer] * self.accesors.y_val_nec(x, customer, alpha) for customer in
                 self._p.customers.keys()
             )
             a.append(nec_sum)
 
         for j, alpha in enumerate(reversed(alphas)):
             pos_sum = sum(
-                self._p.customers[customer] * self.y_val_pos(x, customer, alpha) for customer in
+                self._p.customers[customer] * self.accesors.y_val_pos(x, customer, alpha) for customer in
                 self._p.customers.keys()
             )
             a.append(pos_sum)
@@ -199,7 +150,7 @@ class ConsonantFuzzyNRP(ElementwiseProblem):
             sum2 = 0
             for req, effort in self._p.effort_req.items():
                 e1, e2, e3, e4 = effort
-                x_pos = self.x_val_pos(x, req, alpha)
+                x_pos = self.accesors.x_val_pos(x, req, alpha)
                 sum1 += e2 * x_pos
                 sum2 += (e2 - e1) * x_pos
             left_side = p3 - sum1
@@ -220,8 +171,8 @@ class ConsonantFuzzyNRP(ElementwiseProblem):
             sum2 = 0
             for req, effort in self._p.effort_req.items():
                 e1, e2, e3, e4 = effort
-                sum1 += e3 * self.x_val_nec(x, req, alpha)
-                sum2 += (e4 - e3) * self.x_val_nec(x, req, alpha)
+                sum1 += e3 * self.accesors.x_val_nec(x, req, alpha)
+                sum2 += (e4 - e3) * self.accesors.x_val_nec(x, req, alpha)
             left_side = p2 - sum1
             right_side = (1 - alpha) * (p2 - p1 + sum2)
             constraint_val = right_side - left_side
@@ -242,8 +193,8 @@ class ConsonantFuzzyNRP(ElementwiseProblem):
 
         for alpha in self._p.AC:
             for i, j in self._p.prereq:
-                left_side = self.x_val_pos(x, j, alpha)
-                right_side = self.x_val_pos(x, i, alpha)
+                left_side = self.accesors.x_val_pos(x, j, alpha)
+                right_side = self.accesors.x_val_pos(x, i, alpha)
                 constraint_values.append(left_side - right_side)
         assert (self._p.len_ac * len(self._p.prereq)) == len(constraint_values)
         return np.array(constraint_values)
@@ -252,8 +203,8 @@ class ConsonantFuzzyNRP(ElementwiseProblem):
         constraint_values = []
         for alpha in self._p.AC:
             for i, j in self._p.prereq:
-                left_side = self.x_val_nec(x, j, alpha)
-                right_side = self.x_val_nec(x, i, alpha)
+                left_side = self.accesors.x_val_nec(x, j, alpha)
+                right_side = self.accesors.x_val_nec(x, i, alpha)
                 constraint_values.append(left_side - right_side)
         assert (self._p.len_ac * len(self._p.prereq)) == len(constraint_values)
         return np.array(constraint_values)
@@ -262,8 +213,8 @@ class ConsonantFuzzyNRP(ElementwiseProblem):
         constraint_values = []
         for alpha in self._p.AC:
             for customer_i, req_j in self._p.interests:
-                left_side = self.y_val_pos(x, customer_i, alpha)
-                right_side = self.x_val_pos(x, req_j, alpha)
+                left_side = self.accesors.y_val_pos(x, customer_i, alpha)
+                right_side = self.accesors.x_val_pos(x, req_j, alpha)
                 constraint_values.append(left_side - right_side)
         assert (self._p.len_ac * len(self._p.interests)) == len(constraint_values)
         return np.array(constraint_values)
@@ -272,8 +223,8 @@ class ConsonantFuzzyNRP(ElementwiseProblem):
         constraint_values = []
         for alpha in self._p.AC:
             for customer_i, req_j in self._p.interests:
-                left_side = self.y_val_nec(x, customer_i, alpha)
-                right_side = self.x_val_nec(x, req_j, alpha)
+                left_side = self.accesors.y_val_nec(x, customer_i, alpha)
+                right_side = self.accesors.x_val_nec(x, req_j, alpha)
                 constraint_values.append(left_side - right_side)
         assert (self._p.len_ac * len(self._p.interests)) == len(constraint_values)
         return np.array(constraint_values)
@@ -287,8 +238,8 @@ class ConsonantFuzzyNRP(ElementwiseProblem):
                     constraint_values.append(0)
                 else:
                     alpha2 = min(greater_alphas)
-                    left_side = self.x_val_pos(x, req, alpha2)
-                    right_side = self.x_val_pos(x, req, alpha1)
+                    left_side = self.accesors.x_val_pos(x, req, alpha2)
+                    right_side = self.accesors.x_val_pos(x, req, alpha1)
                     constraint_values.append(left_side - right_side)
         assert len(constraint_values) == (self._p.len_ac * len(self._p.effort_req))
         return np.array(constraint_values)
@@ -302,8 +253,8 @@ class ConsonantFuzzyNRP(ElementwiseProblem):
                     constraint_values.append(0)
                 else:
                     alpha2 = min(greater_alphas)
-                    left_side = self.x_val_nec(x, req, alpha1)
-                    right_side = self.x_val_nec(x, req, alpha2)
+                    left_side = self.accesors.x_val_nec(x, req, alpha1)
+                    right_side = self.accesors.x_val_nec(x, req, alpha2)
                     constraint_values.append(left_side - right_side)
         assert len(constraint_values) == (self._p.len_ac * len(self._p.effort_req))
         return np.array(constraint_values)
@@ -312,8 +263,8 @@ class ConsonantFuzzyNRP(ElementwiseProblem):
         max_ac = max(self._p.AC)
         constraint_values = []
         for req in self._p.effort_req.keys():
-            left_side = self.x_val_nec(x, req, max_ac)
-            right_side = self.x_val_nec(x, req, max_ac)
+            left_side = self.accesors.x_val_nec(x, req, max_ac)
+            right_side = self.accesors.x_val_nec(x, req, max_ac)
             constraint_values.append(left_side - right_side)
         assert len(constraint_values) == len(self._p.effort_req)
         return np.array(constraint_values)
@@ -361,10 +312,14 @@ def main():
 
     algol = algorithm(
         pop_size=100,
-        n_offsprings=10,
+        n_offsprings=9,
         sampling=BinaryRandomSampling(),
         crossover=TwoPointCrossover(),
+
         mutation=BitflipMutation(),
+        # mutation=NrpMutation(),
+        # TODO: Una opcion a la hora de mutar es elegir la mutacion entre las mutacion que hacen
+        # que la solucion siga siendo factible
         eliminate_duplicates=True,
         seed=1
     )
