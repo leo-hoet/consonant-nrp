@@ -264,7 +264,7 @@ class ConsonantFuzzyNRP(ElementwiseProblem):
         constraint_values = []
         for req in self._p.effort_req.keys():
             left_side = self.accesors.x_val_nec(x, req, max_ac)
-            right_side = self.accesors.x_val_nec(x, req, max_ac)
+            right_side = self.accesors.x_val_pos(x, req, max_ac)
             constraint_values.append(left_side - right_side)
         assert len(constraint_values) == len(self._p.effort_req)
         return np.array(constraint_values)
