@@ -32,7 +32,22 @@ class NrpRepair:
                     x = self.accessor.x_mutate(x, req_name, alpha2, 1)
         return x
 
+    def _repair_nec_pos(self, x):
+        xs_nec, xs_pos = self.accessor.get_xs(x)
+        new_xs_nec = []
+        new_xs_pos = []
+        for x_nec, x_pos in np.column_stack((xs_nec, xs_pos)):
+            if x_nec <= x_pos:
+                new_xs_nec.append(x_nec)
+                new_xs_pos.append(x_pos)
+            new_xs_nec.append(x_nec)
+            new_xs_pos.append(1)
+        return np.concatenate((new_xs_nec, new_xs_pos))
+
+
+
     def repair(self, x):
         x = self._repair_precedence(x)
         x = self._repair_alphas(x)
+        x = self._repair_nec_pos(x)
         return x

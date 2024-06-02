@@ -14,7 +14,17 @@ class RepairOperatorTest(unittest.TestCase):
         self.model = ConsonantFuzzyNRP(self.params)
 
     def test_repair_in_nec_and_pos(self):
-        self.fail("TODO")
+        X = np.zeros(self.model.get_all_vars().size)
+        x_nec, x_pos = self.model.accesors.get_xs(X)
+
+        x_nec[5:] = 1
+        concatenated = np.concatenate((x_nec, x_pos))
+        arr = self.model.nested_plans_nec_to_pos_rule(concatenated)
+        self.assertFalse((all(x <= 0 for x in arr)))
+
+        x_repaired = NrpRepair(params=self.params).repair(concatenated)
+        arr = self.model.nested_plans_nec_to_pos_rule(x_repaired)
+        self.assertTrue((all(x <= 0 for x in arr)))
 
     def test_repair_precedence(self):
         X = np.zeros(self.model.get_all_vars().size)
