@@ -9,15 +9,22 @@ class NrpRepair:
         self._params = params
         self.accessor = NrpAccessors(params)
 
-    def _repair_precedence(self, x):
+    def _repair_precedence(self, X):
+        x_nec, x_pos = self.accessor.get_xs(X)
+        y_nec, y_pos = self.accessor.get_ys(X)
+
         for alpha in self._params.AC:
             for i, j in self._params.prereq:
-                xi = self.accessor.x_val(xs=x, req_name=i, alpha=alpha)
-                xj = self.accessor.x_val(xs=x, req_name=j, alpha=alpha)
-                if xi >= xj:
-                    continue
-                x = self.accessor.x_mutate(x, i, alpha, 1)
-        return x
+                xi = self.accessor.x_val_nec(x=X, req_name=i, alpha=alpha)
+                xj = self.accessor.x_val_nec(x=X, req_name=j, alpha=alpha)
+                if xj > xi:
+                    x_nec = self.accessor.x_mutate(x_nec, i, alpha, 1)
+
+                xi = self.accessor.x_val_pos(x=X, req_name=i, alpha=alpha)
+                xj = self.accessor.x_val_pos(x=X, req_name=j, alpha=alpha)
+                if xj > xi:
+                    x_pos = self.accessor.x_mutate(x_pos, i, alpha, 1)
+        return np.concatenate((x_nec, x_pos, y_nec, y_pos))
 
     def _repair_alphas(self, x):
         reqs_names = self._params.effort_req.keys()
@@ -48,8 +55,8 @@ class NrpRepair:
 
     def _repair(self, x):
         x = self._repair_precedence(x)
-        x = self._repair_alphas(x)
-        x = self._repair_nec_pos(x)
+        # x = self._repair_alphas(x)
+        # x = self._repair_nec_pos(x)
         return x
 
     def repair(self, X):

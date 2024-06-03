@@ -20,7 +20,7 @@ from nrpmutation import NrpMutation
 
 
 class Config:
-    RUN_TYPE: Literal['default', 'piecewise', 'constraints_as_of'] = 'constraints_as_of'
+    RUN_TYPE: Literal['default', 'piecewise', 'constraints_as_of'] = 'piecewise'
 
 
 class BestCandidateCallback(Callback):
