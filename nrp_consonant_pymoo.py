@@ -20,7 +20,7 @@ from nrpmutation import NrpMutation
 
 
 class Config:
-    RUN_TYPE: Literal['default', 'piecewise', 'constraints_as_of'] = 'piecewise'
+    RUN_TYPE: Literal['default', 'piecewise', 'constraints_as_of'] = 'constraints_as_of'
 
 
 class BestCandidateCallback(Callback):
@@ -315,9 +315,8 @@ def main():
         n_offsprings=9,
         sampling=BinaryRandomSampling(),
         crossover=TwoPointCrossover(),
-
-        mutation=BitflipMutation(),
-        # mutation=NrpMutation(),
+        # mutation=BitflipMutation(),
+        mutation=NrpMutation(params=params),
         # TODO: Una opcion a la hora de mutar es elegir la mutacion entre las mutacion que hacen
         # que la solucion siga siendo factible
         eliminate_duplicates=True,
