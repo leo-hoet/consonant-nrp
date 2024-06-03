@@ -55,8 +55,8 @@ class NrpRepair:
 
     def _repair(self, x):
         x = self._repair_precedence(x)
-        # x = self._repair_alphas(x)
-        # x = self._repair_nec_pos(x)
+        x = self._repair_alphas(x)
+        x = self._repair_nec_pos(x)
         return x
 
     def repair(self, X):
