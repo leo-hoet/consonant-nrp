@@ -110,9 +110,9 @@ class NrpRepair:
         return np.concatenate((xs_nec, xs_pos, y_nec, y_pos))
 
     def _repair(self, old_x, x):
+        x = self._repair_nec_pos(old_x, x)
         # x = self._repair_precedence(old_x, x)
         x = self._repair_alphas(old_x, x)
-        x = self._repair_nec_pos(old_x, x)
         return x
 
     def repair(self, old_X, X):
