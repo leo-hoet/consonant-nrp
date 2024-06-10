@@ -15,7 +15,6 @@ class NrpRepair:
         x_nec, x_pos = self.accessor.get_xs(x)
         y_nec, y_pos = self.accessor.get_ys(x)
         x_nec_old, x_pos_old = self.accessor.get_xs(old_x)
-        y_nec_old, y_pos_old = self.accessor.get_ys(old_x)
 
         for alpha in self._params.AC:
             for i, j in self._params.prereq:
@@ -24,13 +23,22 @@ class NrpRepair:
                 xi_old = self.accessor.x_val_nec(x=x_nec_old, req_name=i, alpha=alpha)
                 xj_old = self.accessor.x_val_nec(x=x_nec_old, req_name=j, alpha=alpha)
 
-                if xj > xi:
-                    x_nec = self.accessor.x_mutate(x_nec, i, alpha, 1)
+                if (xi_old, xj_old) == (0, 0) and (xi, xj) == (1, 0):
+                    x_nec = self.accessor.x_mutate(x_nec, j, alpha, 1)
+
+                if (xi_old, xj_old) == (1, 1) and (xi, xi) == (0, 1):
+                    x_nec = self.accessor.x_mutate(x_nec, j, alpha, 0)
 
                 xi = self.accessor.x_val_pos(x=x, req_name=i, alpha=alpha)
                 xj = self.accessor.x_val_pos(x=x, req_name=j, alpha=alpha)
-                if xj > xi:
-                    x_pos = self.accessor.x_mutate(x_pos, i, alpha, 1)
+                xi_old = self.accessor.x_val_nec(x=x_pos_old, req_name=i, alpha=alpha)
+                xj_old = self.accessor.x_val_nec(x=x_pos_old, req_name=j, alpha=alpha)
+                if (xi_old, xj_old) == (0, 0) and (xi, xj) == (1, 0):
+                    x_pos = self.accessor.x_mutate(x_pos, j, alpha, 1)
+
+                if (xi_old, xj_old) == (1, 1) and (xi, xi) == (0, 1):
+                    x_pos = self.accessor.x_mutate(x_pos, j, alpha, 0)
+
         return np.concatenate((x_nec, x_pos, y_nec, y_pos))
 
     def changes_idx(self, x1, x2) -> List[int]:
@@ -89,8 +97,6 @@ class NrpRepair:
             res.append(v)
         return np.array(res, dtype=bool)
 
-
-
     def _repair_nec_pos(self, x):
         xs_nec, xs_pos = self.accessor.get_xs(x)
         ys_nec, ys_pos = self.accessor.get_ys(x)
@@ -106,8 +112,7 @@ class NrpRepair:
         return np.concatenate((new_xs_nec, new_xs_pos, ys_nec, ys_pos))
 
     def _repair(self, old_x, x):
-        # x = self._repair_precedence(old_x, x)
-        dbg = self._dbg_x(x)
+        x = self._repair_precedence(old_x, x)
         x = self._repair_alphas(old_x, x)
         # x = self._repair_nec_pos(x)
         return x
