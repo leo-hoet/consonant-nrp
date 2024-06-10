@@ -40,61 +40,42 @@ class NrpRepair:
                 res.append(i)
         return res
 
+    def _repair_matrix(self, x_nec, x_nec_old):
+        # This method has some problems like if the array is in an inconsistent state it will not repair it but
+        # it's good enough
+        x_nec_matrix = self._dbg_x(x_nec)
+        x_old_nec_matrix = self._dbg_x(x_nec_old)
+
+        result = x_nec_matrix.copy()
+
+        rows, cols = x_nec_matrix.shape
+        for i in range(rows):
+            for j in range(cols):
+                x_old = x_old_nec_matrix[i, j]
+                x_new = x_nec_matrix[i, j]
+                if x_new == x_old:
+                    continue
+                # from 0 to 1
+                if x_new > x_old:
+                    for k in range(i, rows):
+                        result[k, j] = True
+                else:
+                    for k in reversed(range(i)):
+                        result[k, j] = False
+
+        return result
+
     def _repair_alphas(self, old_x, x):
         reqs_names = self._params.effort_req.keys()
 
         x_nec, x_pos = self.accessor.get_xs(x)
         y_nec, y_pos = self.accessor.get_ys(x)
         x_nec_old, x_pos_old = self.accessor.get_xs(old_x)
-        y_nec_old, y_pos_old = self.accessor.get_ys(old_x)
 
-        changes = self.changes_idx(x_nec_old, x_nec)
+        repaired_nec = self._repair_matrix(x_nec, x_nec_old)
+        repaired_pos = self._repair_matrix(x_pos, x_pos_old)
 
-        for change_idx in changes:
-            if x_nec[change_idx] > x_nec_old[change_idx]:
-                # from 0 to 1
-                pass
-            else:
-                pass
-
-        for alpha in self._params.AC:
-            for alpha2 in [a for a in self._params.AC if a > alpha]:
-                for req_name in reqs_names:
-                    x_alpha_nec = self.accessor.x_val(x_nec, req_name, alpha)
-                    x_alpha2_nec = self.accessor.x_val(x_nec, req_name, alpha2)
-                    x_alpha_nec_old = self.accessor.x_val(x_nec_old, req_name, alpha)
-
-                    if x_alpha_nec > x_alpha_nec_old:
-                        # x_alpha_nec from 0 to 1
-                        if x_alpha_nec > x_alpha2_nec:
-                            x_nec = self.accessor.x_mutate(x_nec, req_name, alpha2, 1)
-
-                        x_alpha_pos = self.accessor.x_val(x_pos, req_name, alpha)
-                        x_alpha2_pos = self.accessor.x_val(x_pos, req_name, alpha2)
-
-                        if x_alpha_pos > x_alpha2_pos:
-                            x_pos = self.accessor.x_mutate(x_pos, req_name, alpha2, 1)
-
-        for alpha in self._params.AC[::-1]:
-            alphas_2 = [a for a in self._params.AC[::-1] if a < alpha]
-            for alpha2 in alphas_2:
-                for req_name in reqs_names:
-                    x_alpha_nec = self.accessor.x_val(x_nec, req_name, alpha)
-                    x_alpha2_nec = self.accessor.x_val(x_nec, req_name, alpha2)
-                    x_alpha_nec_old = self.accessor.x_val(x_nec_old, req_name, alpha)
-
-                    if x_alpha_nec_old > x_alpha_nec:
-                        # x_alpha_nec from 1 to 0
-                        if x_alpha_nec < x_alpha2_nec:
-                            x_nec = self.accessor.x_mutate(x_nec, req_name, alpha2, 0)
-
-                        x_alpha_pos = self.accessor.x_val(x_pos, req_name, alpha)
-                        x_alpha2_pos = self.accessor.x_val(x_pos, req_name, alpha2)
-
-                        if x_alpha_pos < x_alpha2_pos:
-                            x_pos = self.accessor.x_mutate(x_pos, req_name, alpha2, 0)
-
-        new_x = np.concatenate((x_nec, x_pos, y_nec, y_pos))
+        new_x = np.concatenate((repaired_nec.flatten(), repaired_pos.flatten(), y_nec, y_pos))
         dbg = self._dbg_x(new_x)
         return new_x
 
