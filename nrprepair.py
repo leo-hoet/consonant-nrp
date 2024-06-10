@@ -25,7 +25,7 @@ class NrpRepair:
                 if (xi_old, xj_old) == (0, 0) and (xi, xj) == (1, 0):
                     x_nec = self.accessor.x_mutate(x_nec, j, alpha, 1)
 
-                if (xi_old, xj_old) == (1, 1) and (xi, xi) == (0, 1):
+                if (xi_old, xj_old) == (1, 1) and (xi, xj) == (0, 1):
                     x_nec = self.accessor.x_mutate(x_nec, j, alpha, 0)
 
                 xi = self.accessor.x_val_pos(x=x, req_name=i, alpha=alpha)
@@ -35,17 +35,10 @@ class NrpRepair:
                 if (xi_old, xj_old) == (0, 0) and (xi, xj) == (1, 0):
                     x_pos = self.accessor.x_mutate(x_pos, j, alpha, 1)
 
-                if (xi_old, xj_old) == (1, 1) and (xi, xi) == (0, 1):
+                if (xi_old, xj_old) == (1, 1) and (xi, xj) == (0, 1):
                     x_pos = self.accessor.x_mutate(x_pos, j, alpha, 0)
 
         return np.concatenate((x_nec, x_pos, y_nec, y_pos))
-
-    def changes_idx(self, x1, x2) -> List[int]:
-        res = []
-        for (i, (x, y)) in enumerate(zip(x1, x2)):
-            if x != y:
-                res.append(i)
-        return res
 
     def _repair_matrix(self, x_nec, x_nec_old):
         # This method has some problems like if the array is in an inconsistent state it will not repair it but
