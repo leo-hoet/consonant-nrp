@@ -14,14 +14,13 @@ class NrpRepair:
     def _repair_precedence(self, old_x, x):
         x_nec, x_pos = self.accessor.get_xs(x)
         y_nec, y_pos = self.accessor.get_ys(x)
-        x_nec_old, x_pos_old = self.accessor.get_xs(old_x)
 
         for alpha in self._params.AC:
             for i, j in self._params.prereq:
                 xi = self.accessor.x_val_nec(x=x, req_name=i, alpha=alpha)
                 xj = self.accessor.x_val_nec(x=x, req_name=j, alpha=alpha)
-                xi_old = self.accessor.x_val_nec(x=x_nec_old, req_name=i, alpha=alpha)
-                xj_old = self.accessor.x_val_nec(x=x_nec_old, req_name=j, alpha=alpha)
+                xi_old = self.accessor.x_val_nec(x=old_x, req_name=i, alpha=alpha)
+                xj_old = self.accessor.x_val_nec(x=old_x, req_name=j, alpha=alpha)
 
                 if (xi_old, xj_old) == (0, 0) and (xi, xj) == (1, 0):
                     x_nec = self.accessor.x_mutate(x_nec, j, alpha, 1)
@@ -31,8 +30,8 @@ class NrpRepair:
 
                 xi = self.accessor.x_val_pos(x=x, req_name=i, alpha=alpha)
                 xj = self.accessor.x_val_pos(x=x, req_name=j, alpha=alpha)
-                xi_old = self.accessor.x_val_nec(x=x_pos_old, req_name=i, alpha=alpha)
-                xj_old = self.accessor.x_val_nec(x=x_pos_old, req_name=j, alpha=alpha)
+                xi_old = self.accessor.x_val_nec(x=old_x, req_name=i, alpha=alpha)
+                xj_old = self.accessor.x_val_nec(x=old_x, req_name=j, alpha=alpha)
                 if (xi_old, xj_old) == (0, 0) and (xi, xj) == (1, 0):
                     x_pos = self.accessor.x_mutate(x_pos, j, alpha, 1)
 
@@ -97,24 +96,30 @@ class NrpRepair:
             res.append(v)
         return np.array(res, dtype=bool)
 
-    def _repair_nec_pos(self, x):
+    def _repair_nec_pos(self, old_x, x):
         xs_nec, xs_pos = self.accessor.get_xs(x)
-        ys_nec, ys_pos = self.accessor.get_ys(x)
-        new_xs_nec = []
-        new_xs_pos = []
-        for x_nec, x_pos in np.column_stack((xs_nec, xs_pos)):
-            if x_nec <= x_pos:
-                new_xs_nec.append(x_nec)
-                new_xs_pos.append(x_pos)
-                continue
-            new_xs_nec.append(x_nec)
-            new_xs_pos.append(1)
-        return np.concatenate((new_xs_nec, new_xs_pos, ys_nec, ys_pos))
+        xs_nec_old, xs_pos_old = self.accessor.get_xs(old_x)
+        y_nec, y_pos = self.accessor.get_ys(x)
+
+        for alpha in self._params.AC:
+            for req in self._params.effort_req.keys():
+                x_nec = self.accessor.x_val_nec(x=x, req_name=req, alpha=alpha)
+                x_pos = self.accessor.x_val_pos(x=x, req_name=req, alpha=alpha)
+                x_nec_old = self.accessor.x_val_nec(x=old_x, req_name=req, alpha=alpha)
+                x_pos_old = self.accessor.x_val_pos(x=old_x, req_name=req, alpha=alpha)
+
+                if (x_nec, x_pos) == (0, 0) and (x_nec_old, x_pos_old) == (1, 0):
+                    xs_pos = self.accessor.x_mutate(xs_pos, req_name=req, alpha=alpha, new_val=1)
+
+                if (x_nec, x_pos) == (1, 1) and (x_nec_old, x_pos_old) == (0, 1):
+                    xs_nec = self.accessor.x_mutate(xs_nec, req_name=req, alpha=alpha, new_val=0)
+
+        return np.concatenate((xs_nec, xs_pos, y_nec, y_pos))
 
     def _repair(self, old_x, x):
-        x = self._repair_precedence(old_x, x)
+        # x = self._repair_precedence(old_x, x)
         x = self._repair_alphas(old_x, x)
-        # x = self._repair_nec_pos(x)
+        x = self._repair_nec_pos(old_x, x)
         return x
 
     def repair(self, old_X, X):
